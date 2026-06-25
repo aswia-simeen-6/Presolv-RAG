@@ -1,0 +1,38 @@
+services:
+  # ── Backend API ────────────────────────────────────────────────────────────
+  - type: web
+    name: rag-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .           # build context = repo root (so Dockerfile can COPY PDF/)
+    plan: starter              # upgrade to standard for persistent disk
+    healthCheckPath: /health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false            # set manually in Render dashboard
+      - key: CHROMA_DIR
+        value: /data/chroma_db
+      - key: PDF_DIR
+        value: /app/PDF
+    disk:
+      name: chroma-data
+      mountPath: /data
+      sizeGB: 1
+
+  # ── Frontend Static Site ────────────────────────────────────────────────────
+  - type: web
+    name: rag-frontend
+    runtime: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: rag-backend
+          type: web
+          property: host
+          transform: "https://{value}"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
